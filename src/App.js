@@ -20,7 +20,6 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}>
-        {/* Header - a honlap kek metallic gradientjenek megfeleloen */}
         <Box
           sx={{
             py: 6,
@@ -39,7 +38,7 @@ function App() {
             PaperHands
           </Typography>
           <Typography sx={{ mt: 1, opacity: 0.85, color: '#fff' }}>
-            The Weak Hands Revolution on Ethereum &mdash; Trade / Stake / Liquidity, egy helyen
+            The Weak Hands Revolution on Ethereum &mdash; Trade / Stake / Liquidity, all in one place
           </Typography>
         </Box>
 
@@ -62,7 +61,7 @@ function App() {
                 >
                   <Tab label="Swap" />
                   <Tab label="Stake" />
-                  <Tab label="Liquidity hozzaadasa" />
+                  <Tab label="Add Liquidity" />
                 </Tabs>
               </Box>
 
