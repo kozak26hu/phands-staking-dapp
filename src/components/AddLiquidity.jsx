@@ -15,7 +15,7 @@ const ROUTER_ABI = [
   "function addLiquidityETH(address token, uint256 amountTokenDesired, uint256 amountTokenMin, uint256 amountETHMin, address to, uint256 deadline) payable returns (uint256 amountToken, uint256 amountETH, uint256 liquidity)"
 ];
 
-// Egyszeru, fix slippage-tolerancia - a min. ertekeket ehhez kepest szamoljuk
+// Fixed slippage tolerance - min amounts are calculated against this
 const SLIPPAGE_BPS = 300n; // 3%
 
 function AddLiquidity({ signer }) {
@@ -30,7 +30,7 @@ function AddLiquidity({ signer }) {
     setSuccess('');
 
     if (!phandAmount || !ethAmount || Number(phandAmount) <= 0 || Number(ethAmount) <= 0) {
-      setError('Adj meg ervenyes PHANDS es ETH mennyiseget');
+      setError('Enter valid PHANDS and ETH amounts');
       return;
     }
 
@@ -43,19 +43,19 @@ function AddLiquidity({ signer }) {
       const phandWei = ethers.parseEther(phandAmount);
       const ethWei = ethers.parseEther(ethAmount);
 
-      // 1. Approve, ha szukseges
+      // 1. Approve if needed
       const currentAllowance = await token.allowance(addr, ROUTER_ADDRESS_RAW);
       if (currentAllowance < phandWei) {
         const approveTx = await token.approve(ROUTER_ADDRESS_RAW, ethers.MaxUint256);
         await approveTx.wait();
       }
 
-      // 2. Min. ertekek szamitasa (slippage-vedelem)
+      // 2. Calculate min amounts (slippage protection)
       const phandMin = (phandWei * (10000n - SLIPPAGE_BPS)) / 10000n;
       const ethMin = (ethWei * (10000n - SLIPPAGE_BPS)) / 10000n;
-      const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 perc
+      const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes
 
-      // 3. addLiquidityETH hivas
+      // 3. Call addLiquidityETH
       const tx = await router.addLiquidityETH(
         TOKEN_ADDRESS_RAW,
         phandWei,
@@ -67,11 +67,11 @@ function AddLiquidity({ signer }) {
       );
       const receipt = await tx.wait();
 
-      setSuccess(`Liquidity hozzaadva! Tx: ${receipt.hash}`);
+      setSuccess(`Liquidity added! Tx: ${receipt.hash}`);
       setPhandAmount('');
       setEthAmount('');
     } catch (err) {
-      setError('Liquidity hozzaadas sikertelen: ' + err.message);
+      setError('Failed to add liquidity: ' + err.message);
     }
     setLoading(false);
   };
@@ -79,15 +79,15 @@ function AddLiquidity({ signer }) {
   return (
     <Card sx={{ maxWidth: 600, margin: 'auto', mt: 4, p: 2 }}>
       <CardContent>
-        <Typography variant="h5" gutterBottom>Liquidity hozzaadasa (PHANDS / WETH)</Typography>
+        <Typography variant="h5" gutterBottom>Add Liquidity (PHANDS / WETH)</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Ez kozvetlenul a Uniswap V2 poolhoz ad hozza PHANDS-ot es ETH-t, cserebe LP-tokent kapsz,
-          amit utana a Staking fulon tovabb is stake-elhetsz jutalomert.
+          This adds PHANDS and ETH directly to the Uniswap V2 pool. In return you receive LP tokens,
+          which you can then stake on the Stake tab to earn rewards.
         </Typography>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
             <TextField
-              label="PHANDS mennyiseg"
+              label="PHANDS amount"
               value={phandAmount}
               onChange={(e) => setPhandAmount(e.target.value)}
               type="number"
@@ -96,7 +96,7 @@ function AddLiquidity({ signer }) {
           </Grid>
           <Grid item xs={12} sm={6}>
             <TextField
-              label="ETH mennyiseg"
+              label="ETH amount"
               value={ethAmount}
               onChange={(e) => setEthAmount(e.target.value)}
               type="number"
@@ -110,7 +110,7 @@ function AddLiquidity({ signer }) {
               disabled={loading}
               fullWidth
             >
-              Liquidity hozzaadasa
+              Add Liquidity
             </Button>
           </Grid>
           {loading && (
@@ -130,9 +130,9 @@ function AddLiquidity({ signer }) {
           )}
           <Grid item xs={12}>
             <Typography variant="caption" color="text.secondary">
-              Figyelem: az arany a jelenlegi PHANDS/WETH aranyhoz kozel adj meg, kulonben a Uniswap
-              a felesleget visszaadja, es tobb PHANDS/ETH marad felhasznalatlanul a walletedben.
-              A tranzakcio kb. 3%-os slippage-vedelemmel megy.
+              Note: enter amounts close to the current PHANDS/WETH ratio, otherwise Uniswap will
+              refund the excess and it will remain unused in your wallet. The transaction uses
+              roughly 3% slippage protection.
             </Typography>
           </Grid>
         </Grid>
