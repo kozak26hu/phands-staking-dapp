@@ -5,7 +5,7 @@ import { Button, TextField, Card, CardContent, Typography, CircularProgress, Gri
 // Contract addresses (raw, validated at runtime)
 const TOKEN_ADDRESS_RAW = '0x11157da1fc6dcfd58b50ed79082183b2c6176245';  // PHANDS
 const LP_TOKEN_ADDRESS_RAW = '0x29b2b1450dfe8d856fA42250437B1e827435f82E';  // PHANDS/WETH Uniswap V2 pair (javitva)
-const STAKING_ADDRESS_RAW = '0xc84d7d602bB3880a1f5a83335c0C61c9C3e9c668';  // Uj, javitott staking kontraktus
+const STAKING_ADDRESS_RAW = '0xea2b0eebb56020ff6eb9dba6277fb47be8773b92';  // Uj, javitott staking kontraktus
 
 const TOKEN_ABI = [
   "function balanceOf(address account) view returns (uint256)",
