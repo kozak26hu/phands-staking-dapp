@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { Button, TextField, Card, CardContent, Typography, CircularProgress, Grid, Switch, FormControlLabel } from '@mui/material';
+import { Button, TextField, Card, CardContent, Typography, CircularProgress, Grid, Switch, FormControlLabel, Box } from '@mui/material';
+
 
 // Contract addresses (raw, validated at runtime)
 const TOKEN_ADDRESS_RAW = '0x11157da1fc6dcfd58b50ed79082183b2c6176245';  // PHANDS
