@@ -3,9 +3,9 @@ import { ethers } from 'ethers';
 import { Button, TextField, Card, CardContent, Typography, CircularProgress, Grid, Switch, FormControlLabel, Box } from '@mui/material';
 
 // Contract addresses (raw, validated at runtime)
-const TOKEN_ADDRESS_RAW = '0x11157da1fc6dcfd58b50ed79082183b2c6176245';  // PHANDS
-const LP_TOKEN_ADDRESS_RAW = '0x29b2b1450dfe8d856fA42250437B1e827435f82E';  // PHANDS/WETH Uniswap V2 pair (javitva)
-const STAKING_ADDRESS_RAW = '0x62fe22a9b954bc84fc6a74d889324fb40d13dce4';  // Vegleges (v4) staking kontraktus - gifted stake + LP cap javitva
+const TOKEN_ADDRESS_RAW = '0x11157da1fc6dcfd58b50ed79082183b2c6176245'; // PHANDS
+const LP_TOKEN_ADDRESS_RAW = '0x29b2b1450dfe8d856fA42250437B1e827435f82E'; // PHANDS/WETH Uniswap V2 pair
+const STAKING_ADDRESS_RAW = '0x62fe22a9b954bc84fc6a74d889324fb40d13dce4'; // Vegleges (v4) staking kontraktus
 
 const TOKEN_ABI = [
   "function balanceOf(address account) view returns (uint256)",
@@ -14,6 +14,7 @@ const TOKEN_ABI = [
   "function name() view returns (string)",
   "function symbol() view returns (string)"
 ];
+
 const LP_TOKEN_ABI = [
   "function balanceOf(address account) view returns (uint256)",
   "function approve(address spender, uint256 amount) returns (bool)",
@@ -21,11 +22,13 @@ const LP_TOKEN_ABI = [
   "function name() view returns (string)",
   "function symbol() view returns (string)"
 ];
-// Frissitett ABI az uj MyStaking.sol-hoz
+
 const STAKING_ABI = [
   "function stakePHAND(uint256 amount)",
+  "function stakePHANDFor(address beneficiary, uint256 amount)",
   "function unstakePHAND(uint256 amount)",
   "function stakeLP(uint256 amount)",
+  "function stakeLPFor(address beneficiary, uint256 amount)",
   "function unstakeLP(uint256 amount)",
   "function claimRewards()",
   "function toggleAutoClaim(bool isLp)",
@@ -66,9 +69,10 @@ function Staking({ signer, provider }) {
   const [currentTimestamp, setCurrentTimestamp] = useState(0);
   const [referrerInput, setReferrerInput] = useState('');
   const [currentReferrer, setCurrentReferrer] = useState(null);
+  const [beneficiary, setBeneficiary] = useState(''); // uj: masnak stakeles
 
   const PHAND_LOCK_PERIOD_SECONDS = 30 * 24 * 60 * 60;
-  const LP_LOCK_PERIOD_SECONDS = 90 * 24 * 60 * 60; // v4 szerzodesben az LP-zarolas 90 nap, nem 30
+  const LP_LOCK_PERIOD_SECONDS = 90 * 24 * 60 * 60;
 
   const refreshAll = async () => {
     if (!signer || !provider) return;
@@ -78,7 +82,6 @@ function Staking({ signer, provider }) {
         setError('Please switch to Ethereum Mainnet or Hardhat fork in MetaMask');
         return;
       }
-
       let TOKEN_ADDRESS, LP_TOKEN_ADDRESS, STAKING_ADDRESS;
       try {
         TOKEN_ADDRESS = ethers.getAddress(TOKEN_ADDRESS_RAW);
@@ -88,16 +91,13 @@ function Staking({ signer, provider }) {
         setError('Invalid contract address: ' + err.message);
         return;
       }
-
       const block = await provider.getBlock('latest');
       setCurrentTimestamp(Number(block.timestamp));
-
       const phands = new ethers.Contract(TOKEN_ADDRESS, TOKEN_ABI, signer);
       const lpToken = new ethers.Contract(LP_TOKEN_ADDRESS, LP_TOKEN_ABI, signer);
       const staking = new ethers.Contract(STAKING_ADDRESS, STAKING_ABI, signer);
       const addr = await signer.getAddress();
 
-      // PHANDS + stake adatok
       let pBal = 0n, pAllw = 0n, pName = 'PHANDS', pStake = { amount: 0n, startTime: 0n, lastClaimed: 0n, autoClaimEnabled: false };
       try {
         [pBal, pAllw, pName, pStake] = await Promise.all([
@@ -110,7 +110,6 @@ function Staking({ signer, provider }) {
         setError('Failed to fetch PHANDS data: ' + err.message);
       }
 
-      // LP + stake adatok
       let lpBal = 0n, lpAllw = 0n, lpNm = 'LP', lpStake = { amount: 0n, startTime: 0n, lastClaimed: 0n, autoClaimEnabled: false };
       try {
         [lpBal, lpAllw, lpNm, lpStake] = await Promise.all([
@@ -123,10 +122,8 @@ function Staking({ signer, provider }) {
         setError(prev => prev ? prev + '; LP data failed: ' + err.message : 'LP data failed: ' + err.message);
       }
 
-      // Pending rewards - kulon PHAND es LP
       const [phandPending, lpPending] = await staking.pendingRewards(addr).catch(() => [0n, 0n]);
 
-      // Referrer allapot lekerdezese
       const refContract = new ethers.Contract(TOKEN_ADDRESS, REFERRAL_ABI, signer);
       const refAddr = await refContract.referrers(addr).catch(() => ethers.ZeroAddress);
       setCurrentReferrer(refAddr === ethers.ZeroAddress ? null : refAddr);
@@ -182,19 +179,54 @@ function Staking({ signer, provider }) {
       setError('Enter a valid amount');
       return;
     }
+
+    // Ha van beneficiary megadva, validáljuk
+    let target = null;
+    if (beneficiary.trim()) {
+      try {
+        target = ethers.getAddress(beneficiary.trim());
+      } catch {
+        setError('Invalid beneficiary address');
+        return;
+      }
+    }
+
     const contract = isLp
       ? new ethers.Contract(LP_TOKEN_ADDRESS_RAW, LP_TOKEN_ABI, signer)
       : new ethers.Contract(TOKEN_ADDRESS_RAW, TOKEN_ABI, signer);
+
     if (!(await approveIfNeeded(contract, amount, isLp ? 'lp' : 'phands'))) return;
+
     setLoading(true);
     setError('');
     try {
       const staking = new ethers.Contract(STAKING_ADDRESS_RAW, STAKING_ABI, signer);
-      const tx = isLp
-        ? await staking.stakeLP(ethers.parseEther(amount), { gasLimit: 300000 })
-        : await staking.stakePHAND(ethers.parseEther(amount), { gasLimit: 300000 });
+      const parsedAmount = ethers.parseEther(amount);
+
+      let tx;
+      if (target) {
+        // Masnak stakelunk
+        tx = isLp
+          ? await staking.stakeLPFor(target, parsedAmount, { gasLimit: 350000 })
+          : await staking.stakePHANDFor(target, parsedAmount, { gasLimit: 350000 });
+      } else {
+        // Sajat magunknak
+        tx = isLp
+          ? await staking.stakeLP(parsedAmount, { gasLimit: 300000 })
+          : await staking.stakePHAND(parsedAmount, { gasLimit: 300000 });
+      }
+
       await tx.wait();
-      alert(`Staked ${amount} ${isLp ? 'LP tokens' : 'PHANDS'}!`);
+
+      if (target) {
+        alert(`Staked ${amount} ${isLp ? 'LP tokens' : 'PHANDS'} for ${target.slice(0, 6)}...${target.slice(-4)}!`);
+      } else {
+        alert(`Staked ${amount} ${isLp ? 'LP tokens' : 'PHANDS'}!`);
+      }
+
+      setPhandsAmount('');
+      setLpAmount('');
+      setBeneficiary('');
       await refreshAll();
     } catch (err) {
       setError(`Stake failed: ${err.message}. Check balance or gas.`);
@@ -202,7 +234,6 @@ function Staking({ signer, provider }) {
     setLoading(false);
   };
 
-  // amount = '' vagy '0' eseten a teljes stake-et vonja ki (a kontraktus 0-t ertelmezi "mindent kivesz"-kent)
   const handleUnstake = async (isLp = false, amount = '') => {
     const lockEnd = isLp ? lpLockEnd : phandsLockEnd;
     const block = await provider.getBlock('latest');
@@ -243,7 +274,6 @@ function Staking({ signer, provider }) {
     setLoading(false);
   };
 
-  // isLp: melyik auto-claim kapcsolot billentjuk (kulon PHAND es LP)
   const handleToggleAutoClaim = async (isLp) => {
     setLoading(true);
     setError('');
@@ -362,8 +392,23 @@ function Staking({ signer, provider }) {
             />
           </Grid>
 
+          {/* UJ: Beneficiary mezo - masnak stakeleshez */}
+          <Grid item xs={12}>
+            <SectionLabel>Stake for someone else (optional)</SectionLabel>
+            <TextField
+              label="Beneficiary wallet address"
+              value={beneficiary}
+              onChange={(e) => setBeneficiary(e.target.value)}
+              fullWidth
+              size="small"
+              margin="dense"
+              placeholder="0x... (leave empty to stake for yourself)"
+              helperText="If filled, the stake will be credited to this address instead of yours"
+            />
+          </Grid>
+
           <Grid item xs={12} sm={6}>
-            <SectionLabel>PHAND &middot; 30-day lock</SectionLabel>
+            <SectionLabel>PHAND · 30-day lock</SectionLabel>
             <TextField
               label="Amount (PHANDS)"
               value={phandsAmount}
@@ -375,7 +420,7 @@ function Staking({ signer, provider }) {
             />
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
               <Button variant="contained" size="small" onClick={() => handleStake(false)} disabled={loading}>
-                Stake
+                {beneficiary.trim() ? 'Stake for other' : 'Stake'}
               </Button>
               <Button
                 variant="outlined"
@@ -398,7 +443,7 @@ function Staking({ signer, provider }) {
           </Grid>
 
           <Grid item xs={12} sm={6}>
-            <SectionLabel>LP &middot; 90-day lock</SectionLabel>
+            <SectionLabel>LP · 90-day lock</SectionLabel>
             <TextField
               label="Amount (LP Tokens)"
               value={lpAmount}
@@ -410,7 +455,7 @@ function Staking({ signer, provider }) {
             />
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
               <Button variant="contained" size="small" onClick={() => handleStake(true)} disabled={loading}>
-                Stake
+                {beneficiary.trim() ? 'Stake for other' : 'Stake'}
               </Button>
               <Button
                 variant="outlined"
@@ -444,7 +489,7 @@ function Staking({ signer, provider }) {
           </Grid>
 
           <Grid item xs={12}>
-            <SectionLabel>🎯 Referral</SectionLabel>
+            <SectionLabel>Referral</SectionLabel>
             {currentReferrer ? (
               <Typography variant="body2" sx={{ color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace" }}>
                 Referrer set: {currentReferrer.slice(0, 6)}...{currentReferrer.slice(-4)} (permanent)
