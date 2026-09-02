@@ -169,7 +169,7 @@ function App() {
                 <TabPanel value={tab} index={3}>
                   <AddLiquidity signer={signer} />
                 </TabPanel>
-              </TabPanel>
+             
             </>
           )}
         </Container>
