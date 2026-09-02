@@ -6,6 +6,7 @@ import WalletConnect from './components/WalletConnect';
 import Staking from './components/Staking';
 import Swap from './components/Swap';
 import AddLiquidity from './components/AddLiquidity';
+import Transfer from './components/Transfer';
 
 function TabPanel({ children, value, index }) {
   return value === index ? <Box sx={{ mt: 3 }}>{children}</Box> : null;
@@ -125,7 +126,7 @@ function App() {
             PaperHands
           </Typography>
           <Typography sx={{ color: 'text.secondary', maxWidth: 480, mx: 'auto' }}>
-            Swap, Stake, and Add Liquidity &mdash; all in one place.
+            Swap, Stake, Transfer, and Add Liquidity &mdash; all in one place.
           </Typography>
         </Box>
 
@@ -148,20 +149,26 @@ function App() {
                 >
                   <Tab label="Swap" />
                   <Tab label="Stake" />
+                  <Tab label="Transfer" />
                   <Tab label="Add Liquidity" />
                 </Tabs>
               </Box>
 
               <TabPanel value={tab} index={0}>
-                <Swap signer={signer} />
-              </TabPanel>
-
-              <TabPanel value={tab} index={1}>
-                <Staking signer={signer} provider={provider} />
-              </TabPanel>
-
-              <TabPanel value={tab} index={2}>
-                <AddLiquidity signer={signer} />
+                  <Swap signer={signer} />
+                </TabPanel>
+                
+                <TabPanel value={tab} index={1}>
+                  <Staking signer={signer} provider={provider} />
+                </TabPanel>
+                
+                <TabPanel value={tab} index={2}>
+                  <Transfer signer={signer} />
+                </TabPanel>
+                
+                <TabPanel value={tab} index={3}>
+                  <AddLiquidity signer={signer} />
+                </TabPanel>
               </TabPanel>
             </>
           )}
